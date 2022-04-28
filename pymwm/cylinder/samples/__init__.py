@@ -69,8 +69,7 @@ class Samples(Sampling):
         h2s_mag = self.fill(w_comp) * w_comp ** 2 - chi ** 2 / self.r ** 2
         chi = jnp_zeros(n, num_m)
         h2s_elec = self.fill(w_comp) * w_comp ** 2 - chi ** 2 / self.r ** 2
-        h2s = np.hstack((h2s_mag, h2s_elec))
-        return h2s
+        return np.hstack((h2s_mag, h2s_elec))
 
     def beta2_pec_per_mode(self, w, key):
         """Return squares of phase constants for a PEC waveguide
@@ -89,13 +88,8 @@ class Samples(Sampling):
         """
         w_comp = w.real + 1j * w.imag
         pol, n, m = key
-        if pol == 'M':
-            chi = jn_zeros(n, m)[-1]
-            h2 = self.fill(w_comp) * w_comp ** 2 - chi ** 2 / self.r ** 2
-        else:
-            chi = jnp_zeros(n, m)[-1]
-            h2 = self.fill(w_comp) * w_comp ** 2 - chi ** 2 / self.r ** 2
-        return h2
+        chi = jn_zeros(n, m)[-1] if pol == 'M' else jnp_zeros(n, m)[-1]
+        return self.fill(w_comp) * w_comp ** 2 - chi ** 2 / self.r ** 2
 
     def u(self, h2: complex, w: complex, e1: complex) -> complex:
         # return np.sqrt(e1 * w ** 2 - h2) * self.r
@@ -131,14 +125,12 @@ class Samples(Sampling):
         te = jpus / u + kpvs * jus / (v * kvs)
         tm = e1 * jpus / u + e2 * kpvs * jus / (v * kvs)
         if n == 0:
-            if pol == 'M':
-                val = tm
-            else:
-                val = te
+            return tm if pol == 'M' else te
         else:
-            val = (tm * te - h2comp * (n / w) ** 2 *
-                   ((1 / u ** 2 + 1 / v ** 2) * jus) ** 2)
-        return val
+            return (
+                tm * te
+                - h2comp * (n / w) ** 2 * ((1 / u**2 + 1 / v**2) * jus) ** 2
+            )
 
     def jac(self, h2, args):
         """Return Jacobian of the characteristic equation
@@ -172,20 +164,22 @@ class Samples(Sampling):
         dtm_du = e1 * dte_du
         dtm_dv = e2 * dte_dv
         if n == 0:
-            if pol == 'M':
-                val = dtm_du * du_dh2 + dtm_dv * dv_dh2
-            else:
-                val = dte_du * du_dh2 + dte_dv * dv_dh2
-        else:
-            dre_dh2 = -(n / w) ** 2 * jus * (
-                jus * (
-                    (1 / u ** 2 + 1 / v ** 2) ** 2 -
-                    self.r * h2comp * (1 / u ** 4 - 1 / v ** 4)) +
-                jpus * 2 * h2comp * (1 / u ** 2 + 1 / v ** 2) ** 2)
-            val = ((dte_du * du_dh2 + dte_dv * dv_dh2) * tm +
-                   (dtm_du * du_dh2 + dtm_dv * dv_dh2) * te +
-                   dre_dh2)
-        return val
+            return (
+                dtm_du * du_dh2 + dtm_dv * dv_dh2
+                if pol == 'M'
+                else dte_du * du_dh2 + dte_dv * dv_dh2
+            )
+
+        dre_dh2 = -(n / w) ** 2 * jus * (
+            jus * (
+                (1 / u ** 2 + 1 / v ** 2) ** 2 -
+                self.r * h2comp * (1 / u ** 4 - 1 / v ** 4)) +
+            jpus * 2 * h2comp * (1 / u ** 2 + 1 / v ** 2) ** 2)
+        return (
+            (dte_du * du_dh2 + dte_dv * dv_dh2) * tm
+            + (dtm_du * du_dh2 + dtm_dv * dv_dh2) * te
+            + dre_dh2
+        )
 
     def func_jac(self, h2, *args):
         """Return the value and Jacobian of the characteristic equation
@@ -286,8 +280,7 @@ class Samples(Sampling):
                     denom += 1.0e-14
                 prod_denom *= 1.0 / denom
             f *= prod_denom
-            f_array = np.array([f.real, f.imag])
-            return f_array
+            return np.array([f.real, f.imag])
 
         for i, xi in enumerate(xis):
             if i < num_m + 1:

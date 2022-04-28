@@ -70,23 +70,34 @@ class Sampling(metaclass=abc.ABCMeta):
         size = self.size
         size2 = self.size2
         if self.fill.model == 'dielectric':
-            core = "RI_{}".format(self.fill.params['RI'])
+            core = f"RI_{self.fill.params['RI']}"
         else:
             core = "{0}".format(self.fill.model)
         if self.clad.model == 'dielectric':
-            clad = "RI_{}".format(self.clad.params['RI'])
+            clad = f"RI_{self.clad.params['RI']}"
         else:
             clad = "{0}".format(self.clad.model)
         num_n = p['num_n']
         num_m = p['num_m']
         num_all = self.num_all
         im_factor = self.clad.im_factor
-        d = dict((
-            ('shape', shape), ('size', size), ('size2', size2), ('core', core),
-            ('clad', clad), ('wl_max', wl_max), ('wl_min', wl_min),
-            ('wl_imag', wl_imag), ('dw', dw), ('num_n', num_n),
-            ('num_m', num_m), ('num_all', num_all), ('im_factor', im_factor)))
-        return d
+        return dict(
+            (
+                ('shape', shape),
+                ('size', size),
+                ('size2', size2),
+                ('core', core),
+                ('clad', clad),
+                ('wl_max', wl_max),
+                ('wl_min', wl_min),
+                ('wl_imag', wl_imag),
+                ('dw', dw),
+                ('num_n', num_n),
+                ('num_m', num_m),
+                ('num_all', num_all),
+                ('im_factor', im_factor),
+            )
+        )
 
     def plot_convs(self, convs, alpha):
         import matplotlib.pyplot as plt
@@ -176,15 +187,18 @@ class Waveguide(metaclass=abc.ABCMeta):
         self.beta_funcs = self.samples.database.interpolation(
             betas, convs, self.bounds)
 
-        alpha_list = []
         alpha_candidates = params['modes'].get('alphas', None)
-        for alpha, comp in self.beta_funcs.keys():
-            if comp == 'real':
-                if alpha_candidates is not None:
-                    if alpha in alpha_candidates:
-                        alpha_list.append(alpha)
-                else:
-                    alpha_list.append(alpha)
+        alpha_list = [
+            alpha
+            for alpha, comp in self.beta_funcs.keys()
+            if comp == 'real'
+            and (
+                alpha_candidates is not None
+                and alpha in alpha_candidates
+                or alpha_candidates is None
+            )
+        ]
+
         alpha_list.sort()
         self.alphas = self.get_alphas(alpha_list)
 
@@ -312,7 +326,7 @@ class Waveguide(metaclass=abc.ABCMeta):
         ws = 2 * np.pi / wls
         pol, n, m = alpha
         # label = r"{0}".format(pol) + r"$_{" + r"{}{}".format(n, m) + "}$"
-        label = "({},{},{})".format(pol, n, m)
+        label = f"({pol},{n},{m})"
         if comp == 'real':
             hs = [self.beta(wr + 1j * wi, alpha).real for wr in ws]
         elif comp == 'imag':
@@ -608,9 +622,11 @@ class Database:
         self.num_m = key['num_m']
         self.num_all = key['num_all']
         self.im_factor = key['im_factor']
-        cond = ''
-        for col in list(self.catalog_columns.keys())[1:-3]:
-            cond += '{0} == @self.{0} & '.format(col)
+        cond = ''.join(
+            '{0} == @self.{0} & '.format(col)
+            for col in list(self.catalog_columns.keys())[1:-3]
+        )
+
         self.cond = cond.rstrip('& ')
         ind_w_min = int(np.floor(2 * np.pi / self.wl_max / self.dw))
         ind_w_max = int(np.ceil(2 * np.pi / self.wl_min / self.dw))
@@ -641,15 +657,14 @@ class Database:
         if len(catalog.index) == 0:
             return 0
         sns = catalog.query(self.cond)['sn']
-        if len(sns):
-            if len(sns) != self.num_all:
-                print(sns)
-                print(catalog[self.cond])
-                print(len(sns), self.num_all)
-                raise Exception("Database is broken.")
-            return min(sns)
-        else:
+        if not len(sns):
             return max(catalog['sn']) + 1
+        if len(sns) != self.num_all:
+            print(sns)
+            print(catalog[self.cond])
+            print(len(sns), self.num_all)
+            raise Exception("Database is broken.")
+        return min(sns)
 
     @staticmethod
     def set_columns_dtype(df: DataFrame, columns: Dict):
@@ -661,8 +676,8 @@ class Database:
         num_wr = len(self.ws)
         num_wi = len(self.wis)
         with pd.HDFStore(self.filename, "r") as store:
-            betas = dict()
-            convs = dict()
+            betas = {}
+            convs = {}
             catalog = store['catalog']
             sns = range(self.sn, self.sn + self.num_all)
             #  If there is no data for sn, IndexError should be raised
@@ -672,7 +687,7 @@ class Database:
                 em = catalog.loc[i, 'EM']
                 n = catalog.loc[i, 'n']
                 m = catalog.loc[i, 'm']
-                data = store['sn_{}'.format(sn)]
+                data = store[f'sn_{sn}']
                 conv = data['conv']
                 beta_real = data['beta_real']
                 beta_imag = data['beta_imag']
@@ -690,7 +705,7 @@ class Database:
             sns = catalog.query(self.cond)['sn']
             for i, sn in zip(indices, sns):
                 catalog = catalog.drop(i)
-                store.remove("sn_{}".format(sn))
+                store.remove(f"sn_{sn}")
             sn = self.sn
             for EM, n, m in sorted(convs.keys()):
                 se = pd.Series(
@@ -706,7 +721,7 @@ class Database:
                      'beta_imag': beta.imag},
                     columns=self.data_columns.keys())
                 self.set_columns_dtype(df, self.data_columns)
-                store.append('sn_{}'.format(sn), df)
+                store.append(f'sn_{sn}', df)
                 sn += 1
             self.set_columns_dtype(catalog, self.catalog_columns)
             store['catalog'] = catalog
@@ -721,7 +736,7 @@ class Database:
         with pd.HDFStore(data_file, 'r') as data:
             catalog_from = data['catalog']
             sns = catalog_from['sn']
-            data_dict = {sn: data['sn_{}'.format(sn)] for sn in sns}
+            data_dict = {sn: data[f'sn_{sn}'] for sn in sns}
         with pd.HDFStore(cls.filename, complevel=9, complib='blosc') as store:
             catalog = store['catalog']
             sn_new = max(catalog['sn']) + 1
@@ -734,31 +749,31 @@ class Database:
                     se['sn'] = sn_new
                     catalog = catalog.append(se, ignore_index=True)
                     print(catalog[catalog['sn'] == sn_new])
-                    store.append('sn_{}'.format(sn_new), data_dict[sn])
+                    store.append(f'sn_{sn_new}', data_dict[sn])
                     sn_new += 1
             cls.set_columns_dtype(catalog, cls.catalog_columns)
             store['catalog'] = catalog
 
     def delete(self, sns: List):
         with pd.HDFStore(
-                self.filename, complevel=9, complib='blosc') as store:
+                    self.filename, complevel=9, complib='blosc') as store:
             catalog = store['catalog']
             indices = [catalog[catalog['sn'] == sn].index[0] for sn in sns]
             for i, sn in zip(indices, sns):
                 catalog.drop(i, inplace=True)
-                store.remove("sn_{}".format(sn))
+                store.remove(f"sn_{sn}")
             store['catalog'] = catalog
         self.sn = self.get_sn()
 
     def delete_current(self):
         with pd.HDFStore(
-                self.filename, complevel=9, complib='blosc') as store:
+                    self.filename, complevel=9, complib='blosc') as store:
             catalog = store['catalog']
             sns = range(self.sn, self.sn + self.num_all)
             indices = [catalog[catalog['sn'] == sn].index[0] for sn in sns]
             for i, sn in zip(indices, sns):
                 catalog.drop(i, inplace=True)
-                store.remove("sn_{}".format(sn))
+                store.remove(f"sn_{sn}")
             store['catalog'] = catalog
         self.sn = self.get_sn()
 
@@ -781,9 +796,12 @@ class Database:
         j_min = np.searchsorted(wis, [wi_min], side='right')[0] - 1
         if i_min == -1 or i_max == len(self.ws) or j_min == -1:
             raise ValueError(
-                "exceed data bounds: " +
-                "i_min={} i_max={} j_min={} len(ws)={}".format(
-                    i_min, i_max, j_min, len(self.ws)))
+                (
+                    "exceed data bounds: "
+                    + f"i_min={i_min} i_max={i_max} j_min={j_min} len(ws)={len(self.ws)}"
+                )
+            )
+
         beta_funcs = {}
         for pol in ['M', 'E']:
             for n in range(num_n):

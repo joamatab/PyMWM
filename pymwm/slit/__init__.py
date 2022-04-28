@@ -79,7 +79,7 @@ class Slit(Waveguide):
         except IndexError:
             betas = convs = None
             success = False
-        for num_n in [n for n in range(num_n_0, 25)]:
+        for num_n in list(range(num_n_0, 25)):
             if num_n == num_n_0:
                 if success:
                     break
@@ -174,9 +174,8 @@ class Slit(Waveguide):
         if abs(val.real) > abs(val.imag):
             if val.real < 0:
                 val *= -1
-        else:
-            if val.imag < 0:
-                val *= -1
+        elif val.imag < 0:
+            val *= -1
         return val
 
     def coef(self, h, w, alpha):
@@ -231,16 +230,17 @@ class Slit(Waveguide):
             else:
                 b_a = u / v * np.sin(u)
                 parity = 1
+        elif pol == 'E':
+            b_a = np.cos(u)
+            parity = 1
         else:
-            if pol == 'E':
-                b_a = np.cos(u)
-                parity = 1
-            else:
-                b_a = - u / v * np.cos(u)
-                parity = -1
-        val = np.sqrt(a2_b2 * self.r * (
-            b_a ** 2 / (2 * v) + (1.0 + parity * self.sinc(2 * u)) / 2))
-        return val
+            b_a = - u / v * np.cos(u)
+            parity = -1
+        return np.sqrt(
+            a2_b2
+            * self.r
+            * (b_a**2 / (2 * v) + (1.0 + parity * self.sinc(2 * u)) / 2)
+        )
 
     def Y(self, w, h, alpha, a, b):
         """Return the effective admittance of the waveguide mode
@@ -264,10 +264,7 @@ class Slit(Waveguide):
         y_tm_in = self.y_tm_inner(w, h)
         y_tm_out = self.y_tm_outer(w, h)
         if e2.real < -1e6:
-            if pol == 'E':
-                return y_te
-            else:
-                return y_tm_in
+            return y_te if pol == 'E' else y_tm_in
         u = self.samples.u(h ** 2, w, e1)
         v = self.samples.v(h ** 2, w, e2)
         if pol == 'E':
@@ -282,17 +279,20 @@ class Slit(Waveguide):
             else:
                 b_a = u / v * np.sin(u)
                 parity = 1
+        elif pol == 'E':
+            b_a = np.cos(u)
+            parity = 1
         else:
-            if pol == 'E':
-                b_a = np.cos(u)
-                parity = 1
-            else:
-                b_a = - u / v * np.cos(u)
-                parity = -1
-        val = (a ** 2 + b ** 2) * self.r * (
-            y_out * b_a ** 2 / (2 * v) +
-            (1.0 + parity * self.sinc(2 * u)) * y_in / 2)
-        return val
+            b_a = - u / v * np.cos(u)
+            parity = -1
+        return (
+            (a**2 + b**2)
+            * self.r
+            * (
+                y_out * b_a**2 / (2 * v)
+                + (1.0 + parity * self.sinc(2 * u)) * y_in / 2
+            )
+        )
 
     def Yab(self, w, h1, s1, l1, n1, m1, a1, b1,
             h2, s2, l2, n2, m2, a2, b2):
@@ -324,10 +324,7 @@ class Slit(Waveguide):
         if e2.real < -1e6:
             if n1 != n2:
                 return 0.0
-            if s1 == 0:
-                return y_te
-            else:
-                return y_tm_in
+            return y_te if s1 == 0 else y_tm_in
         ac = a1
         a = a2
         bc = b1
@@ -352,15 +349,14 @@ class Slit(Waveguide):
                 b_ac = uc / vc * np.sin(uc)
                 b_a = u / v * np.sin(u)
                 parity = 1
+        elif s1 == 0:
+            b_ac = np.cos(uc)
+            b_a = np.cos(u)
+            parity = 1
         else:
-            if s1 == 0:
-                b_ac = np.cos(uc)
-                b_a = np.cos(u)
-                parity = 1
-            else:
-                b_ac = - uc / vc * np.cos(uc)
-                b_a = - u / v * np.cos(u)
-                parity = -1
+            b_ac = - uc / vc * np.cos(uc)
+            b_a = - u / v * np.cos(u)
+            parity = -1
         val *= (y_out * b_ac * b_a / (v + vc) +
                 y_in * (self.sinc(u - uc) +
                         parity * self.sinc(u + uc)) / 2)
@@ -418,17 +414,15 @@ class Slit(Waveguide):
                     ey = a * b_a * np.exp(-gm * abs(x))
                     hx = y_te * ey
                     hz = 1j * gm / w * x / abs(x) * ey
+            elif abs(x) <= self.r / 2:
+                ey = a * np.sin(gd * x)
+                hx = y_te * ey
+                hz = -1j * gd / w * a * np.cos(gd * x)
             else:
-                # parity odd
-                if abs(x) <= self.r / 2:
-                    ey = a * np.sin(gd * x)
-                    hx = y_te * ey
-                    hz = -1j * gd / w * a * np.cos(gd * x)
-                else:
-                    b_a = np.exp(v) * np.sin(u)
-                    ey = a * b_a * x / abs(x) * np.exp(-gm * abs(x))
-                    hx = y_te * ey
-                    hz = 1j * gm / w * x / abs(x) * ey
+                b_a = np.exp(v) * np.sin(u)
+                ey = a * b_a * x / abs(x) * np.exp(-gm * abs(x))
+                hx = y_te * ey
+                hz = 1j * gm / w * x / abs(x) * ey
         else:
             hx = hz = 0.0
             ey = 0.0
@@ -445,19 +439,17 @@ class Slit(Waveguide):
                     ex = b * b_a * np.exp(-gm * abs(x))
                     hy = y_tm * ex
                     ez = -1j * gm * x / abs(x) / h * ex
+            elif abs(x) <= self.r / 2:
+                y_tm = self.y_tm_inner(w, h)
+                ex = b * np.sin(gd * x)
+                hy = y_tm * ex
+                ez = 1j * gd / h * b * np.cos(gd * x)
             else:
-                # parity odd
-                if abs(x) <= self.r / 2:
-                    y_tm = self.y_tm_inner(w, h)
-                    ex = b * np.sin(gd * x)
-                    hy = y_tm * ex
-                    ez = 1j * gd / h * b * np.cos(gd * x)
-                else:
-                    y_tm = self.y_tm_outer(w, h)
-                    b_a = -u / v * np.exp(v) * np.cos(u)
-                    ex = b * b_a * x / abs(x) * np.exp(-gm * abs(x))
-                    hy = y_tm * ex
-                    ez = -1j * gm * x / abs(x) / h * ex
+                y_tm = self.y_tm_outer(w, h)
+                b_a = -u / v * np.exp(v) * np.cos(u)
+                ex = b * b_a * x / abs(x) * np.exp(-gm * abs(x))
+                hy = y_tm * ex
+                ez = -1j * gm * x / abs(x) / h * ex
         return np.array([ex, ey, ez, hx, hy, hz])
 
     def e_field(self, x, y, w, l, alpha, h, coef) -> np.ndarray:
@@ -494,13 +486,11 @@ class Slit(Waveguide):
                 else:
                     b_a = np.exp(v) * np.cos(u)
                     ey = a * b_a * np.exp(-gm * abs(x))
+            elif abs(x) <= self.r / 2:
+                ey = a * np.sin(gd * x)
             else:
-                # parity odd
-                if abs(x) <= self.r / 2:
-                    ey = a * np.sin(gd * x)
-                else:
-                    b_a = np.exp(v) * np.sin(u)
-                    ey = a * b_a * x / abs(x) * np.exp(-gm * abs(x))
+                b_a = np.exp(v) * np.sin(u)
+                ey = a * b_a * x / abs(x) * np.exp(-gm * abs(x))
         else:
             ey = 0.0
             if n % 2 == 0:
@@ -513,15 +503,13 @@ class Slit(Waveguide):
                     ex = b * b_a * np.exp(-gm * abs(x))
                     ez = (-1j * gm * x / abs(x) / h * b * b_a *
                           np.exp(-gm * abs(x)))
+            elif abs(x) <= self.r / 2:
+                ex = b * np.sin(gd * x)
+                ez = 1j * gd / h * b * np.cos(gd * x)
             else:
-                # parity odd
-                if abs(x) <= self.r / 2:
-                    ex = b * np.sin(gd * x)
-                    ez = 1j * gd / h * b * np.cos(gd * x)
-                else:
-                    b_a = -u / v * np.exp(v) * np.cos(u)
-                    ex = b * b_a * x / abs(x) * np.exp(-gm * abs(x))
-                    ez = -1j * gm / h * b * b_a * np.exp(-gm * abs(x))
+                b_a = -u / v * np.exp(v) * np.cos(u)
+                ex = b * b_a * x / abs(x) * np.exp(-gm * abs(x))
+                ez = -1j * gm / h * b * b_a * np.exp(-gm * abs(x))
         return np.array([ex, ey, ez])
 
     def h_field(self, x, y, w, l, alpha, h, coef) -> np.ndarray:
@@ -562,16 +550,14 @@ class Slit(Waveguide):
                     hx = y_te * a * b_a * np.exp(-gm * abs(x))
                     hz = (1j * gm / w * x / abs(x) *
                           a * b_a * np.exp(-gm * abs(x)))
+            elif abs(x) <= self.r / 2:
+                hx = y_te * a * np.sin(gd * x)
+                hz = -1j * gd / w * a * np.cos(gd * x)
             else:
-                # parity odd
-                if abs(x) <= self.r / 2:
-                    hx = y_te * a * np.sin(gd * x)
-                    hz = -1j * gd / w * a * np.cos(gd * x)
-                else:
-                    b_a = np.exp(v) * np.sin(u)
-                    hx = y_te * a * b_a * x / abs(x) * np.exp(-gm * abs(x))
-                    hz = (1j * gm / w * x / abs(x) *
-                          a * b_a * x / abs(x) * np.exp(-gm * abs(x)))
+                b_a = np.exp(v) * np.sin(u)
+                hx = y_te * a * b_a * x / abs(x) * np.exp(-gm * abs(x))
+                hz = (1j * gm / w * x / abs(x) *
+                      a * b_a * x / abs(x) * np.exp(-gm * abs(x)))
         else:
             hx = hz = 0.0
             if n % 2 == 0:
@@ -583,15 +569,13 @@ class Slit(Waveguide):
                     y_tm = self.y_tm_outer(w, h)
                     b_a = u / v * np.exp(v) * np.sin(u)
                     hy = y_tm * b * b_a * np.exp(-gm * abs(x))
+            elif abs(x) <= self.r / 2:
+                y_tm = self.y_tm_inner(w, h)
+                hy = y_tm * b * np.sin(gd * x)
             else:
-                # parity odd
-                if abs(x) <= self.r / 2:
-                    y_tm = self.y_tm_inner(w, h)
-                    hy = y_tm * b * np.sin(gd * x)
-                else:
-                    y_tm = self.y_tm_outer(w, h)
-                    b_a = -u / v * np.exp(v) * np.cos(u)
-                    hy = y_tm * b * b_a * x / abs(x) * np.exp(-gm * abs(x))
+                y_tm = self.y_tm_outer(w, h)
+                b_a = -u / v * np.exp(v) * np.cos(u)
+                hy = y_tm * b * b_a * x / abs(x) * np.exp(-gm * abs(x))
         return np.array([hx, hy, hz])
 
     def coefs_numpy(self, hs, w):

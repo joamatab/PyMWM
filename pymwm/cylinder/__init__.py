@@ -130,13 +130,8 @@ class Cylinder(Waveguide):
                     for iwi in range(len(smp.wis)):
                         xis_list = []
                         for n in range(num_n):
-                            xis = []
-                            for i in range(num_m + 1):
-                                xis.append(
-                                    betas[('M', n, i + 1)][iwr, iwi] ** 2)
-                            for i in range(num_m):
-                                xis.append(
-                                    betas[('E', n, i + 1)][iwr, iwi] ** 2)
+                            xis = [betas[('M', n, i + 1)][iwr, iwi] ** 2 for i in range(num_m + 1)]
+                            xis.extend(betas[('E', n, i + 1)][iwr, iwi] ** 2 for i in range(num_m))
                             xis_list.append(xis)
                         args.append((iwr, iwi, xis_list))
                 from multiprocessing import Pool
@@ -192,9 +187,8 @@ class Cylinder(Waveguide):
         if abs(val.real) > abs(val.imag):
             if val.real < 0:
                 val *= -1
-        else:
-            if val.imag < 0:
-                val *= -1
+        elif val.imag < 0:
+            val *= -1
         return val
 
     def coef(self, h, w, alpha):
@@ -362,34 +356,28 @@ class Cylinder(Waveguide):
         pol, n, m = alpha
         e1 = self.fill(w)
         e2 = self.clad(w)
-        en = 1 if n == 0 else 2
         if e2.real < -1e6:
-            if pol == 'E':
-                val = h / w
-            else:
-                val = e1 * w / h
-        else:
-            u = self.samples.u(h ** 2, w, e1)
-            jnu = jv(n, u)
-            jnpu = jvp(n, u)
-            v = self.samples.v(h ** 2, w, e2)
-            knv = kv(n, v)
-            knpv = kvp(n, v)
-            val_u = 2 * np.pi * self.r ** 2 / en
-            val_v = val_u * ((u * jnu) / (v * knv)) ** 2
-            upart_diag = self.upart_diag(n, u, jnu, jnpu, u, jnu, jnpu)
-            vpart_diag = self.vpart_diag(n, v, knv, knpv, v, knv, knpv)
-            upart_off = self.upart_off(n, u, jnu, u, jnu)
-            vpart_off = self.vpart_off(n, v, knv, v, knv)
-            val = (val_u * (h / w * a *
-                            (a * upart_diag + b * upart_off) +
-                            e1 * w / h * b *
-                            (b * upart_diag + a * upart_off)) -
-                   val_v * (h / w * a *
-                            (a * vpart_diag + b * vpart_off) +
-                            e2 * w / h * b *
-                            (b * vpart_diag + a * vpart_off)))
-        return val
+            return h / w if pol == 'E' else e1 * w / h
+        u = self.samples.u(h ** 2, w, e1)
+        jnu = jv(n, u)
+        jnpu = jvp(n, u)
+        v = self.samples.v(h ** 2, w, e2)
+        knv = kv(n, v)
+        knpv = kvp(n, v)
+        en = 1 if n == 0 else 2
+        val_u = 2 * np.pi * self.r ** 2 / en
+        val_v = val_u * ((u * jnu) / (v * knv)) ** 2
+        upart_diag = self.upart_diag(n, u, jnu, jnpu, u, jnu, jnpu)
+        vpart_diag = self.vpart_diag(n, v, knv, knpv, v, knv, knpv)
+        upart_off = self.upart_off(n, u, jnu, u, jnu)
+        vpart_off = self.vpart_off(n, v, knv, v, knv)
+        return val_u * (
+            h / w * a * (a * upart_diag + b * upart_off)
+            + e1 * w / h * b * (b * upart_diag + a * upart_off)
+        ) - val_v * (
+            h / w * a * (a * vpart_diag + b * vpart_off)
+            + e2 * w / h * b * (b * vpart_diag + a * vpart_off)
+        )
 
     def Yab(self, w, h1, s1, l1, n1, m1, a1, b1, h2, s2, l2, n2, m2, a2, b2):
         """Return the admittance matrix element of the waveguide modes using
@@ -419,14 +407,10 @@ class Cylinder(Waveguide):
         n = n1
         e1 = self.fill(w)
         e2 = self.clad(w)
-        en = 1 if n == 0 else 2
         if e2.real < -1e6:
             if s1 != s2 or m1 != m2:
                 return 0.0
-            if s1 == 0:
-                val = h2 / w
-            else:
-                val = e1 * w / h2
+            return h2 / w if s1 == 0 else e1 * w / h2
         else:
             ac = a1
             bc = b1
@@ -443,21 +427,20 @@ class Cylinder(Waveguide):
             jnpu = jvp(n, u)
             knv = kv(n, v)
             knpv = kvp(n, v)
+            en = 1 if n == 0 else 2
             val_u = 2 * np.pi * self.r ** 2 / en
             val_v = val_u * (uc * u * jnuc * jnu) / (vc * v * knvc * knv)
             upart_diag = self.upart_diag(n, uc, jnuc, jnpuc, u, jnu, jnpu)
             vpart_diag = self.vpart_diag(n, vc, knvc, knpvc, v, knv, knpv)
             upart_off = self.upart_off(n, uc, jnuc, u, jnu)
             vpart_off = self.vpart_off(n, vc, knvc, v, knv)
-            val = (val_u * (h2 / w * a *
-                            (ac * upart_diag + bc * upart_off) +
-                            e1 * w / h2 * b *
-                            (bc * upart_diag + ac * upart_off)) -
-                   val_v * (h2 / w * a *
-                            (ac * vpart_diag + bc * vpart_off) +
-                            e2 * w / h2 * b *
-                            (bc * vpart_diag + ac * vpart_off)))
-        return val
+            return val_u * (
+                h2 / w * a * (ac * upart_diag + bc * upart_off)
+                + e1 * w / h2 * b * (bc * upart_diag + ac * upart_off)
+            ) - val_v * (
+                h2 / w * a * (ac * vpart_diag + bc * vpart_off)
+                + e2 * w / h2 * b * (bc * vpart_diag + ac * vpart_off)
+            )
 
     @staticmethod
     def y_te(w, h):

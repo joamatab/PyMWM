@@ -31,6 +31,7 @@ cylinder_src = [
     # c_complex_bessel
 ]
 platform = get_platform()
+mkl_libraries = ['mkl_rt']
 if platform.startswith('win'):
     extra_compile_args = []
     # extra_link_args = [
@@ -49,11 +50,6 @@ if platform.startswith('win'):
     mkl_library_dirs = [os.path.abspath(os.path.join(
         os.sep, 'Program Files (x86)', 'IntelSWTools',
         'compilers_and_libraries', 'windows', 'mkl', 'lib', 'intel64'))]
-    # library_dirs = intel_library_dirs + mkl_library_dirs
-    library_dirs = mkl_library_dirs
-    mkl_libraries = ['mkl_rt']
-    # libraries = mkl_libraries + ['gfortran']
-    libraries = mkl_libraries
     # cmd = "ifort {0}.f90 /c /exe:{0}.o /O3 /QxHost".format(
     #     path.join(complex_bessel, 'src', 'amos_iso_c_fortran_wrapper'))
     # subprocess.call(cmd, shell=True)
@@ -77,10 +73,6 @@ else:
         os.sep, 'opt', 'intel', 'mkl', 'include'))
     mkl_library_dirs = [os.path.abspath(os.path.join(
         os.sep, 'opt', 'intel', 'mkl', 'lib', 'intel64'))]
-    mkl_libraries = ['mkl_rt']
-    library_dirs = mkl_library_dirs
-    # libraries = mkl_libraries + ['gfortran', 'dl', 'm']
-    libraries = mkl_libraries
     # cmd = "gfortran -c {0}.f90 -o {0}.o -fPIC -m64 -march=native -O3".format(
     #     path.join(complex_bessel, 'src', 'amos_iso_c_fortran_wrapper'))
     # subprocess.call(cmd, shell=True)
@@ -90,6 +82,10 @@ else:
     # cmd = "gfortran -c {0}.for -o {0}.o -fPIC -m64 -march=native -O3".format(
     #     path.join(complex_bessel, 'src', 'zbesh'))
     # subprocess.call(cmd, shell=True)
+# library_dirs = intel_library_dirs + mkl_library_dirs
+library_dirs = mkl_library_dirs
+# libraries = mkl_libraries + ['gfortran']
+libraries = mkl_libraries
 slit_pyx = path.join('pymwm', 'slit', 'utils', 'slit_utils.pyx')
 # library_dirs = blas_library_dirs + lapack_library_dirs
 # libraries = blas_libraries + lapack_libraries + ['gfortran', 'dl', 'm']

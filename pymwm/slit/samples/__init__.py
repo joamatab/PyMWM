@@ -66,8 +66,7 @@ class Samples(Sampling):
         """
         w_comp = w.real + 1j * w.imag
         ns = np.arange(num_n)
-        h2 = self.fill(w_comp) * w_comp ** 2 - (ns * np.pi / self.r) ** 2
-        return h2
+        return self.fill(w_comp) * w_comp ** 2 - (ns * np.pi / self.r) ** 2
 
     def u(self, h2: complex, w: complex, e1: complex) -> complex:
         # return np.sqrt(e1 * w ** 2 - h2) * self.r / 2
@@ -96,16 +95,14 @@ class Samples(Sampling):
         h2comp = h2.real + 1j * h2.imag
         u = self.u(h2comp, w, e1)
         v = self.v(h2comp, w, e2)
-        if pol == 'E':
-            if n % 2 == 0:
-                return u / v + np.tan(u)
-            else:
-                return u / v - 1 / np.tan(u)
-        else:
-            if n % 2 == 0:
-                return u * np.tan(u) - (e1 * v) / e2
-            else:
-                return u / np.tan(u) + (e1 * v) / e2
+        if pol != 'E':
+            return (
+                u * np.tan(u) - (e1 * v) / e2
+                if n % 2 == 0
+                else u / np.tan(u) + (e1 * v) / e2
+            )
+
+        return u / v + np.tan(u) if n % 2 == 0 else u / v - 1 / np.tan(u)
 
     def func(self, uv, args):
         """Return the values of characteristic equations.
@@ -127,15 +124,11 @@ class Samples(Sampling):
         v = vr + 1j * vi
         val2 = u ** 2 + v ** 2 - w2
         if pol == 'E':
-            if n % 2 == 0:
-                val = u / np.tan(u) + v
-            else:
-                val = u * np.tan(u) - v
+            val = u / np.tan(u) + v if n % 2 == 0 else u * np.tan(u) - v
+        elif n % 2 == 0:
+            val = u * np.tan(u) - e1 * (v / e2)
         else:
-            if n % 2 == 0:
-                val = u * np.tan(u) - e1 * (v / e2)
-            else:
-                val = u / np.tan(u) + e1 * (v / e2)
+            val = u / np.tan(u) + e1 * (v / e2)
         return np.array([val.real, val.imag, val2.real, val2.imag])
 
     @staticmethod
@@ -165,13 +158,12 @@ class Samples(Sampling):
             else:
                 dv_du = (sin + u / cos) / cos
                 dv_dv = - 1.0
+        elif n % 2 == 0:
+            dv_du = (sin + u / cos) / cos
+            dv_dv = - e1 / e2
         else:
-            if n % 2 == 0:
-                dv_du = (sin + u / cos) / cos
-                dv_dv = - e1 / e2
-            else:
-                dv_du = (cos - u / sin) / sin
-                dv_dv = e1 / e2
+            dv_du = (cos - u / sin) / sin
+            dv_dv = e1 / e2
         vals = [[dv_du.real, dv_du.imag, dv_dv.real, dv_dv.imag],
                 [dv_du.imag, dv_du.real, dv_dv.imag, dv_dv.real],
                 [2 * u.real, 2 * u.imag, 2 * v.real, 2 * v.imag],
@@ -211,15 +203,14 @@ class Samples(Sampling):
                 f1 = u * tan - v
                 dv_du = (sin + u / cos) / cos
                 dv_dv = - 1.0
+        elif n % 2 == 0:
+            f1 = u * tan - e1 * (v / e2)
+            dv_du = (sin + u / cos) / cos
+            dv_dv = - e1 / e2
         else:
-            if n % 2 == 0:
-                f1 = u * tan - e1 * (v / e2)
-                dv_du = (sin + u / cos) / cos
-                dv_dv = - e1 / e2
-            else:
-                f1 = u / tan + e1 * (v / e2)
-                dv_du = (cos - u / sin) / sin
-                dv_dv = e1 / e2
+            f1 = u / tan + e1 * (v / e2)
+            dv_du = (cos - u / sin) / sin
+            dv_dv = e1 / e2
         fs = np.array([f1.real, f1.imag, f2.real, f2.imag])
         jas = np.array(
             [[dv_du.real, dv_du.imag, dv_dv.real, dv_dv.imag],
@@ -271,8 +262,7 @@ class Samples(Sampling):
                         denom += 1.0e-14
                     prod_denom *= 1.0 / denom
                 f *= prod_denom
-                f_array = np.array([f.real, f.imag])
-                return f_array
+                return np.array([f.real, f.imag])
 
             result = root(func, np.array([xi.real, xi.imag]), method='hybr',
                           options={'xtol': 1.0e-9})
@@ -365,7 +355,7 @@ class Samples(Sampling):
         e1 = self.fill(w_0)
         e2 = self.clad(w_0)
         e2_1 = -1.0e8 + self.clad(w_0).imag * 1j
-        for j in range(10):
+        for _ in range(10):
             e2_0 = e2_1
             de = (e2 - e2_0) / 100
             for i in range(100):
@@ -550,10 +540,7 @@ class SamplesLowLoss(Samples):
         xs_list = []
         success_list = []
         for i_pol, x0s in enumerate(xis_list):
-            if i_pol == 0:
-                pol = 'M'
-            else:
-                pol = 'E'
+            pol = 'M' if i_pol == 0 else 'E'
             xis = xs = x0s
             success = np.ones_like(xs, dtype=bool)
             for i in range(1, 16):

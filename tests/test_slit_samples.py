@@ -52,8 +52,7 @@ class TestSlitSamples(unittest.TestCase):
     @staticmethod
     def beta2_pec(
             w: complex, n: np.ndarray, e1: complex, r: float) -> np.ndarray:
-        h2 = e1 * w ** 2 - (n * np.pi / r) ** 2
-        return h2
+        return e1 * w ** 2 - (n * np.pi / r) ** 2
 
     def test_beta2_pec(self):
         params = self.params.copy()
